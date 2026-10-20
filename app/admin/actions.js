@@ -178,3 +178,63 @@ export async function hapusProduk(data) {
   revalidatePath("/admin");
   revalidatePath("/");
 }
+
+export async function buatDeskripsiAI(nama, kategori) {
+  const supabase = await createSessionClient();
+
+  // Validasi login di server
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    throw new Error("Aksi ditolak: Anda harus login sebagai admin.");
+  }
+
+  if (!nama || !nama.trim()) {
+    throw new Error("Nama produk wajib diisi untuk membuat deskripsi.");
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (apiKey) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Buatkan deskripsi produk yang menarik, singkat (2-3 kalimat), dan persuasif untuk produk UMKM bernama "${nama}" dengan kategori "${kategori || "Umum"}". Tulis langsung isi deskripsinya tanpa tanda kutip pembuka/penutup atau penjelasan awal.`,
+                  },
+                ],
+              },
+            ],
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const hasil = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (hasil) {
+          return { deskripsi: hasil };
+        }
+      }
+    } catch {
+      // Fallback jika pemanggilan API gagal
+    }
+  }
+
+  // Fallback deskripsi otomatis jika kunci API tidak tersedia atau terjadi gangguan jaringan
+  const deskripsiFallback = `${nama.trim()} adalah produk berkualitas kategori ${kategori?.trim() || "pilihan"} dengan cita rasa dan kualitas terbaik. Dibuat dengan bahan baku bermutu tinggi dan higienis, cocok untuk dinikmati sehari-hari maupun dijadikan oleh-oleh istimewa.`;
+
+  return { deskripsi: deskripsiFallback };
+}

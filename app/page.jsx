@@ -10,6 +10,7 @@ export default async function HalamanKatalog({ searchParams }) {
   const sp = await searchParams;
   const q = sp?.q?.trim() || "";
   const kategori = sp?.kategori?.trim() || "";
+  const urutan = sp?.urutan?.trim() || "terbaru";
 
   // Ambil daftar kategori unik dari tabel produk
   const { data: kategoriData } = await supabaseServer
@@ -20,11 +21,8 @@ export default async function HalamanKatalog({ searchParams }) {
     new Set(kategoriData?.map((item) => item.kategori).filter(Boolean))
   );
 
-  // Buat query produk sesuai search & filter kategori
-  let query = supabaseServer
-    .from("produk")
-    .select("*")
-    .order("created_at", { ascending: false });
+  // Buat query produk sesuai search, filter kategori, dan urutan (US-15)
+  let query = supabaseServer.from("produk").select("*");
 
   if (q) {
     query = query.ilike("nama", `%${q}%`);
@@ -34,7 +32,26 @@ export default async function HalamanKatalog({ searchParams }) {
     query = query.eq("kategori", kategori);
   }
 
+  // Urutan diterapkan saat query database (US-15)
+  if (urutan === "termurah") {
+    query = query.order("harga", { ascending: true });
+  } else if (urutan === "termahal") {
+    query = query.order("harga", { ascending: false });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+
   const { data: daftarProduk, error } = await query;
+
+  // Helper untuk membuat URL dengan parameter aktif
+  const buatUrl = ({ newQ = q, newKategori = kategori, newUrutan = urutan }) => {
+    const params = new URLSearchParams();
+    if (newQ) params.set("q", newQ);
+    if (newKategori && newKategori !== "Semua") params.set("kategori", newKategori);
+    if (newUrutan && newUrutan !== "terbaru") params.set("urutan", newUrutan);
+    const qs = params.toString();
+    return qs ? `/?${qs}` : "/";
+  };
 
   return (
     <>
@@ -55,6 +72,7 @@ export default async function HalamanKatalog({ searchParams }) {
           {/* Form Pencarian */}
           <form method="GET" action="/" className="flex max-w-md flex-1 gap-2">
             {kategori && <input type="hidden" name="kategori" value={kategori} />}
+            {urutan && urutan !== "terbaru" && <input type="hidden" name="urutan" value={urutan} />}
             <input
               type="search"
               name="q"
@@ -65,7 +83,7 @@ export default async function HalamanKatalog({ searchParams }) {
             <Tombol type="submit" varian="utama">
               Cari
             </Tombol>
-            {(q || kategori) && (
+            {(q || kategori || urutan !== "terbaru") && (
               <Tombol href="/" varian="garis">
                 Reset
               </Tombol>
@@ -73,41 +91,65 @@ export default async function HalamanKatalog({ searchParams }) {
           </form>
         </div>
 
-        {/* Filter Kategori */}
-        {daftarKategori.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={q ? `/?q=${encodeURIComponent(q)}` : "/"}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                !kategori || kategori === "Semua"
-                  ? "bg-utama text-white"
-                  : "border border-garis bg-permukaan text-teks-lembut hover:text-utama"
-              }`}
-            >
-              Semua
-            </Link>
-            {daftarKategori.map((kat) => {
-              const isActive = kategori === kat;
-              const href = q
-                ? `/?q=${encodeURIComponent(q)}&kategori=${encodeURIComponent(kat)}`
-                : `/?kategori=${encodeURIComponent(kat)}`;
+        {/* Baris Filter Kategori & Urutan Produk (US-11 & US-15) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-garis pb-4">
+          {/* Filter Kategori */}
+          {daftarKategori.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={buatUrl({ newKategori: "Semua" })}
+                className={`rounded-full px-3.5 py-1 text-xs font-semibold transition-colors ${
+                  !kategori || kategori === "Semua"
+                    ? "bg-utama text-white"
+                    : "border border-garis bg-permukaan text-teks-lembut hover:text-utama"
+                }`}
+              >
+                Semua
+              </Link>
+              {daftarKategori.map((kat) => {
+                const isActive = kategori === kat;
+                return (
+                  <Link
+                    key={kat}
+                    href={buatUrl({ newKategori: kat })}
+                    className={`rounded-full px-3.5 py-1 text-xs font-semibold transition-colors ${
+                      isActive
+                        ? "bg-utama text-white"
+                        : "border border-garis bg-permukaan text-teks-lembut hover:text-utama"
+                    }`}
+                  >
+                    {kat}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
 
+          {/* Pilihan Urutan Produk (US-15) */}
+          <div className="flex items-center gap-1.5 self-start sm:self-auto">
+            <span className="text-xs font-medium text-teks-lembut">Urutan:</span>
+            {[
+              { label: "Terbaru", value: "terbaru" },
+              { label: "Termurah", value: "termurah" },
+              { label: "Termahal", value: "termahal" },
+            ].map((opt) => {
+              const isActive = urutan === opt.value;
               return (
                 <Link
-                  key={kat}
-                  href={href}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  key={opt.value}
+                  href={buatUrl({ newUrutan: opt.value })}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
                     isActive
-                      ? "bg-utama text-white"
-                      : "border border-garis bg-permukaan text-teks-lembut hover:text-utama"
+                      ? "bg-harga-latar text-harga"
+                      : "text-teks-lembut hover:bg-permukaan hover:text-teks"
                   }`}
                 >
-                  {kat}
+                  {opt.label}
                 </Link>
               );
             })}
           </div>
-        )}
+        </div>
 
         {/* Daftar Produk */}
         {error ? (

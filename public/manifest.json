@@ -1,0 +1,22 @@
+{
+  "name": "Ruang Rasa",
+  "short_name": "Ruang Rasa",
+  "description": "Temukan camilan dan minuman favoritmu, dibuat dengan rasa yang bikin ingin kembali.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1f6b4f",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+
