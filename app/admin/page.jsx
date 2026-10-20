@@ -1,10 +1,16 @@
 import NavAdmin from "@/components/NavAdmin";
 import TabelProduk from "@/components/TabelProduk";
 import Tombol from "@/components/Tombol";
-import { produkContoh } from "@/lib/data-contoh";
+import { createSessionClient } from "@/lib/supabase";
 
-export default function HalamanAdmin() {
-  const daftarProduk = produkContoh;
+export const revalidate = 0;
+
+export default async function HalamanAdmin() {
+  const supabase = await createSessionClient();
+  const { data: daftarProduk, error } = await supabase
+    .from("produk")
+    .select("*")
+    .order("created_at", { ascending: false });
 
   return (
     <div className="flex flex-col gap-6 py-8">
@@ -13,7 +19,11 @@ export default function HalamanAdmin() {
         <h1 className="text-2xl font-extrabold">Produk</h1>
         <Tombol href="/admin/produk/baru">Tambah produk</Tombol>
       </div>
-      <TabelProduk daftarProduk={daftarProduk} />
+      {error ? (
+        <p className="text-bahaya">Gagal memuat produk: {error.message}</p>
+      ) : (
+        <TabelProduk daftarProduk={daftarProduk || []} />
+      )}
     </div>
   );
 }
